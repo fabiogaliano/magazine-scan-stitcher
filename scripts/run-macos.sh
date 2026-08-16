@@ -1,15 +1,42 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [[ $# -lt 3 || $# -gt 4 ]]; then
-  echo "Usage: bash scripts/run-macos.sh A.tif B.tif output.tif [180|0]" >&2
-  exit 2
-fi
+usage() {
+  cat >&2 <<'EOF'
+Usage:
+  bash scripts/run-macos.sh scans.tiff output.tif [180|0]
+  bash scripts/run-macos.sh A.tif B.tif output.tif [180|0]
+EOF
+}
 
-A=$1
-B=$2
-OUT=$3
-ROTATE=${4:-180}
+INPUTS=()
+ROTATE=180
+
+case $# in
+  2)
+    INPUTS=("$1")
+    OUT=$2
+    ;;
+  3)
+    if [[ "$3" == "180" || "$3" == "0" ]]; then
+      INPUTS=("$1")
+      OUT=$2
+      ROTATE=$3
+    else
+      INPUTS=("$1" "$2")
+      OUT=$3
+    fi
+    ;;
+  4)
+    INPUTS=("$1" "$2")
+    OUT=$3
+    ROTATE=$4
+    ;;
+  *)
+    usage
+    exit 2
+    ;;
+esac
 
 if [[ "$ROTATE" != "180" && "$ROTATE" != "0" ]]; then
   echo "Rotation must be 180 or 0" >&2
@@ -42,7 +69,7 @@ if [[ "${OVERWRITE:-0}" == "1" ]]; then
 fi
 
 set +e
-"$BUILD/magstitch" "$A" "$B" \
+"$BUILD/magstitch" "${INPUTS[@]}" \
   --rotate-b "$ROTATE" \
   --model auto \
   --output "$OUT" \
