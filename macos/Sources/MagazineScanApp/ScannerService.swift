@@ -8,7 +8,7 @@ extension ICDevice {
 }
 
 @MainActor
-final class ScannerService: NSObject, ObservableObject, ICDeviceBrowserDelegate {
+final class ScannerService: NSObject, ObservableObject, @preconcurrency ICDeviceBrowserDelegate {
     @Published private(set) var scanners: [ICScannerDevice] = []
     @Published var selectedScannerID: String?
     @Published var isSearching = true
@@ -32,24 +32,20 @@ final class ScannerService: NSObject, ObservableObject, ICDeviceBrowserDelegate 
 
     func deviceBrowser(_ browser: ICDeviceBrowser, didAdd device: ICDevice, moreComing: Bool) {
         guard let scanner = device as? ICScannerDevice else { return }
-        Task { @MainActor in
-            if !scanners.contains(where: { $0.magazineScanID == scanner.magazineScanID }) {
-                scanners.append(scanner)
-                scanners.sort { ($0.name ?? "") < ($1.name ?? "") }
-                if selectedScannerID == nil { selectedScannerID = scanner.magazineScanID }
-            }
-            if !moreComing { isSearching = false }
+        if !scanners.contains(where: { $0.magazineScanID == scanner.magazineScanID }) {
+            scanners.append(scanner)
+            scanners.sort { ($0.name ?? "") < ($1.name ?? "") }
+            if selectedScannerID == nil { selectedScannerID = scanner.magazineScanID }
         }
+        if !moreComing { isSearching = false }
     }
 
     func deviceBrowser(_ browser: ICDeviceBrowser, didRemove device: ICDevice, moreGoing: Bool) {
-        Task { @MainActor in
-            scanners.removeAll { $0.magazineScanID == device.magazineScanID }
-            if selectedScannerID == device.magazineScanID { selectedScannerID = scanners.first?.magazineScanID }
-        }
+        scanners.removeAll { $0.magazineScanID == device.magazineScanID }
+        if selectedScannerID == device.magazineScanID { selectedScannerID = scanners.first?.magazineScanID }
     }
 
     func deviceBrowserDidEnumerateLocalDevices(_ browser: ICDeviceBrowser) {
-        Task { @MainActor in isSearching = false }
+        isSearching = false
     }
 }
