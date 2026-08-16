@@ -60,17 +60,21 @@ struct RootView: View {
         } else if let page = workspace.selectedPage {
             PageReviewView(page: page, statusMessage: $workspace.statusMessage)
         } else {
-            ContentUnavailableView {
-                Label("Ready to scan", systemImage: "scanner")
-            } description: {
+            VStack(spacing: 14) {
+                Image(systemName: "scanner")
+                    .font(.system(size: 44))
+                    .foregroundStyle(.secondary)
+                Text("Ready to scan")
+                    .font(.title2.weight(.semibold))
                 Text("Scan directly from a connected device or import an existing scan.")
-            } actions: {
+                    .foregroundStyle(.secondary)
                 HStack {
                     Button("Scan…") { showingScanner = true }
                         .buttonStyle(.borderedProminent)
                     Button("Import…") { workspace.importFiles() }
                 }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
 
@@ -334,11 +338,17 @@ struct PairAlignmentView: View {
                 Divider().frame(height: 24)
 
                 Text("X")
-                TextField("X", value: $workspace.pairAlignment.offsetX, format: .number.precision(.fractionLength(1)))
-                    .frame(width: 70)
+                TextField("X", text: numberBinding(
+                    get: { workspace.pairAlignment.offsetX },
+                    set: { workspace.pairAlignment.offsetX = $0 }
+                ))
+                .frame(width: 70)
                 Text("Y")
-                TextField("Y", value: $workspace.pairAlignment.offsetY, format: .number.precision(.fractionLength(1)))
-                    .frame(width: 70)
+                TextField("Y", text: numberBinding(
+                    get: { workspace.pairAlignment.offsetY },
+                    set: { workspace.pairAlignment.offsetY = $0 }
+                ))
+                .frame(width: 70)
                 nudgeButtons
 
                 Divider().frame(height: 24)
@@ -359,6 +369,13 @@ struct PairAlignmentView: View {
             .padding(12)
             .background(.bar)
         }
+    }
+
+    private func numberBinding(get: @escaping () -> CGFloat, set: @escaping (CGFloat) -> Void) -> Binding<String> {
+        Binding(
+            get: { String(format: "%.1f", get()) },
+            set: { text in if let value = Double(text) { set(CGFloat(value)) } }
+        )
     }
 
     private var nudgeButtons: some View {
