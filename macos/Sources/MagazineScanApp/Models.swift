@@ -102,11 +102,24 @@ final class WorkspaceModel: ObservableObject {
 
     var canAlignPair: Bool { pages.count >= 2 }
 
+    var alignmentPages: [ScanPage] {
+        guard pages.count >= 2 else { return [] }
+        guard let selectedPageID, let selectedIndex = pages.firstIndex(where: { $0.id == selectedPageID }) else {
+            return Array(pages.prefix(2))
+        }
+        let firstIndex = min(selectedIndex, pages.count - 2)
+        return [pages[firstIndex], pages[firstIndex + 1]]
+    }
+
     func addFiles(_ urls: [URL]) {
         do {
             var added: [ScanPage] = []
             for url in urls {
                 added.append(contentsOf: try ImagePipeline.loadPages(from: url))
+            }
+            for page in added {
+                page.crop = ImagePipeline.suggestCrop(for: page)
+                page.cropValidated = false
             }
             pages.append(contentsOf: added)
             if selectedPageID == nil { selectedPageID = added.first?.id }
@@ -115,7 +128,7 @@ final class WorkspaceModel: ObservableObject {
                let rendered = ImagePipeline.render(first, applyCrop: true) {
                 pairAlignment.reset(baseWidth: CGFloat(rendered.width))
             }
-            statusMessage = added.count == 1 ? "1 page added." : "\(added.count) pages added."
+            statusMessage = added.count == 1 ? "1 page added. Review the suggested crop." : "\(added.count) pages added. Review the suggested crops."
         } catch {
             lastError = error.localizedDescription
         }
@@ -145,11 +158,12 @@ final class WorkspaceModel: ObservableObject {
             panel.allowedContentTypes = [.tiff, .png, .jpeg]
             guard panel.runModal() == .OK, let url = panel.url else { return }
 
-            if mode == .align, canAlignPair {
-                guard let image = ImagePipeline.renderPair(pages[0], pages[1], alignment: pairAlignment) else {
+            if mode == .align, alignmentPages.count == 2 {
+                let a = alignmentPages[0], b = alignmentPages[1]
+                guard let image = ImagePipeline.renderPair(a, b, alignment: pairAlignment) else {
                     throw ScanError.renderFailed
                 }
-                try ImagePipeline.write(image, to: url, properties: pages[0].sourceProperties)
+                try ImagePipeline.write(image, to: url, properties: a.sourceProperties)
             } else {
                 guard let image = ImagePipeline.render(page, applyCrop: true) else {
                     throw ScanError.renderFailed
