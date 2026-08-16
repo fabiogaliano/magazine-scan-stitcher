@@ -44,7 +44,7 @@ struct ScannerSheet: View {
                         .foregroundStyle(.secondary)
                     Text(service.isSearching ? "Looking for scanners…" : "No scanner found")
                         .font(.headline)
-                    Text("You can still import TIFF, PNG, JPEG, or PDF scans from the toolbar.")
+                    Text("You can still import TIFF, PNG, or JPEG scans from the toolbar.")
                         .foregroundStyle(.secondary)
                 }
                 .frame(minWidth: 720, minHeight: 520)
