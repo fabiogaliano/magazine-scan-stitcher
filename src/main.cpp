@@ -10,6 +10,7 @@
 #include <iostream>
 #include <stdexcept>
 #include <string>
+#include <vector>
 
 namespace fs = std::filesystem;
 
@@ -17,7 +18,10 @@ namespace {
 
 void usage() {
     std::cerr
-        << "Usage: magstitch A.tif B.tif --output spread.tif [options]\n\n"
+        << "Usage:\n"
+        << "  magstitch scans.tiff --output spread.tif [options]\n"
+        << "  magstitch A.tif B.tif --output spread.tif [options]\n\n"
+        << "Single-input mode expects exactly two pages and uses page 1 as A and page 2 as B.\n\n"
         << "Options:\n"
         << "  --rotate-b 180|0\n"
         << "  --model auto|translation|rigid|similarity|affine\n"
@@ -77,20 +81,55 @@ void writePreview(const cv::Mat& image, const fs::path& path) {
     }
 }
 
+std::vector<cv::Mat> readInputs(const std::vector<fs::path>& input_paths) {
+    if (input_paths.size() == 1) {
+        std::vector<cv::Mat> pages;
+        if (!cv::imreadmulti(input_paths[0].string(), pages, cv::IMREAD_UNCHANGED)) {
+            throw std::runtime_error("failed to read multipage image " + input_paths[0].string());
+        }
+        if (pages.size() != 2) {
+            throw std::runtime_error("single-input mode requires exactly 2 pages; found " +
+                                     std::to_string(pages.size()));
+        }
+        if (pages[0].empty() || pages[1].empty()) {
+            throw std::runtime_error("multipage image contains an unreadable page");
+        }
+        return pages;
+    }
+
+    std::vector<cv::Mat> images;
+    images.reserve(2);
+    for (const auto& path : input_paths) {
+        cv::Mat image = cv::imread(path.string(), cv::IMREAD_UNCHANGED);
+        if (image.empty()) throw std::runtime_error("failed to read " + path.string());
+        images.push_back(std::move(image));
+    }
+    return images;
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
     try {
         if (argc < 2) { usage(); return 2; }
         if (std::string(argv[1]) == "--help") { usage(); return 0; }
-        if (argc < 5) { usage(); return 2; }
 
-        fs::path a_path = argv[1], b_path = argv[2], output_path;
+        std::vector<fs::path> input_paths;
+        int option_start = 1;
+        while (option_start < argc && std::string(argv[option_start]).rfind("--", 0) != 0) {
+            input_paths.emplace_back(argv[option_start]);
+            ++option_start;
+        }
+        if (input_paths.size() < 1 || input_paths.size() > 2) {
+            throw std::invalid_argument("provide one two-page image or two separate scan images");
+        }
+
+        fs::path output_path;
         std::optional<fs::path> debug_dir, metrics_path, preview_path;
         magstitch::StitchOptions options;
         bool overwrite = false;
 
-        for (int i = 3; i < argc; ++i) {
+        for (int i = option_start; i < argc; ++i) {
             const std::string arg = argv[i];
             auto need = [&](const char* flag) -> std::string {
                 if (i + 1 >= argc) throw std::invalid_argument(std::string("missing value for ") + flag);
@@ -120,10 +159,9 @@ int main(int argc, char** argv) {
             throw std::invalid_argument("output already exists; pass --overwrite to replace it");
         }
 
-        cv::Mat a = cv::imread(a_path.string(), cv::IMREAD_UNCHANGED);
-        cv::Mat b = cv::imread(b_path.string(), cv::IMREAD_UNCHANGED);
-        if (a.empty()) throw std::runtime_error("failed to read " + a_path.string());
-        if (b.empty()) throw std::runtime_error("failed to read " + b_path.string());
+        auto images = readInputs(input_paths);
+        const cv::Mat& a = images[0];
+        const cv::Mat& b = images[1];
 
         magstitch::Stitcher stitcher(options);
         auto result = stitcher.stitch(a, b, debug_dir);
