@@ -1,6 +1,6 @@
 import AppKit
-import ImageCaptureCore
-import Quartz
+@preconcurrency import ImageCaptureCore
+@preconcurrency import Quartz
 import SwiftUI
 
 struct ScannerSheet: View {
@@ -82,13 +82,14 @@ struct ScannerDeviceView: NSViewRepresentable {
         if nsView.scannerDevice !== scanner { nsView.scannerDevice = scanner }
     }
 
-    final class Coordinator: NSObject, IKScannerDeviceViewDelegate {
+    @MainActor
+    final class Coordinator: NSObject, @preconcurrency IKScannerDeviceViewDelegate {
         let onScan: (URL) -> Void
         init(onScan: @escaping (URL) -> Void) { self.onScan = onScan }
 
         func scannerDeviceView(_ scannerDeviceView: IKScannerDeviceView!, didScanTo url: URL!, error: (any Error)!) {
             guard error == nil, let url else { return }
-            DispatchQueue.main.async { self.onScan(url) }
+            onScan(url)
         }
     }
 }
