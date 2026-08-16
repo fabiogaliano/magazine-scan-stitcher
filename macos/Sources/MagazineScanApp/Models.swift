@@ -125,7 +125,7 @@ final class WorkspaceModel: ObservableObject {
         let panel = NSOpenPanel()
         panel.allowsMultipleSelection = true
         panel.canChooseDirectories = false
-        panel.allowedContentTypes = [.tiff, .png, .jpeg, .pdf]
+        panel.allowedContentTypes = [.tiff, .png, .jpeg]
         if panel.runModal() == .OK { addFiles(panel.urls) }
     }
 
