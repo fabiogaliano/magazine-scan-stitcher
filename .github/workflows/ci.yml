@@ -26,3 +26,11 @@ jobs:
         run: swift build --package-path macos
       - name: Build local app bundle
         run: bash macos/build-app.sh
+      - name: Package app
+        run: ditto -c -k --sequesterRsrc --keepParent "macos/dist/Magazine Scan.app" MagazineScan-macOS.zip
+      - name: Upload app
+        uses: actions/upload-artifact@v7
+        with:
+          name: MagazineScan-macOS
+          path: MagazineScan-macOS.zip
+          if-no-files-found: error
