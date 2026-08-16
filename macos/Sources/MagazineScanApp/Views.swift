@@ -7,11 +7,27 @@ struct RootView: View {
     @State private var showingScanner = false
 
     var body: some View {
-        NavigationSplitView {
-            sidebar
-                .navigationSplitViewColumnWidth(min: 220, ideal: 250, max: 310)
-        } detail: {
-            detail
+        VStack(spacing: 0) {
+            NavigationSplitView {
+                sidebar
+                    .navigationSplitViewColumnWidth(min: 220, ideal: 250, max: 310)
+            } detail: {
+                detail
+            }
+
+            Divider()
+            HStack(spacing: 7) {
+                Image(systemName: "info.circle")
+                    .foregroundStyle(.secondary)
+                Text(workspace.statusMessage)
+                    .lineLimit(1)
+                    .foregroundStyle(.secondary)
+                Spacer()
+            }
+            .font(.caption)
+            .padding(.horizontal, 12)
+            .frame(height: 28)
+            .background(.bar)
         }
         .toolbar { toolbar }
         .sheet(isPresented: $showingScanner) {
@@ -140,6 +156,7 @@ struct PageReviewView: View {
             HStack(spacing: 16) {
                 Button { page.rotateLeft() } label: { Label("Left", systemImage: "rotate.left") }
                 Button { page.rotateRight() } label: { Label("Right", systemImage: "rotate.right") }
+                Button { page.rotateRight(); page.rotateRight() } label: { Text("180°") }
 
                 Divider().frame(height: 24)
 
@@ -285,11 +302,25 @@ struct PairAlignmentView: View {
     @State private var dragStartX: CGFloat?
     @State private var dragStartY: CGFloat?
 
-    private var first: ScanPage { workspace.pages[0] }
-    private var second: ScanPage { workspace.pages[1] }
+    private var first: ScanPage { workspace.alignmentPages[0] }
+    private var second: ScanPage { workspace.alignmentPages[1] }
 
     var body: some View {
         VStack(spacing: 0) {
+            HStack {
+                Text("Align \(first.title) + \(second.title)")
+                    .font(.headline)
+                    .lineLimit(1)
+                Spacer()
+                Text("Drag the second page; use opacity to verify shared details.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 9)
+            .background(.bar)
+            Divider()
+
             GeometryReader { geo in
                 if let a = ImagePipeline.editedImage(first), let b = ImagePipeline.editedImage(second) {
                     let unionWidth = max(a.size.width, workspace.pairAlignment.offsetX + b.size.width) - min(0, workspace.pairAlignment.offsetX)
@@ -328,55 +359,55 @@ struct PairAlignmentView: View {
             }
 
             Divider()
-            HStack(spacing: 14) {
-                Button("Auto Align") {
-                    if let suggestion = ImagePipeline.suggestPairAlignment(first, second) {
-                        workspace.pairAlignment = suggestion
-                        workspace.statusMessage = "Alignment suggested. Verify it with the overlay before exporting."
-                    } else {
-                        workspace.statusMessage = "Could not find a useful edge-overlap suggestion. Align manually."
+            VStack(spacing: 8) {
+                HStack(spacing: 12) {
+                    Button("Auto Align") {
+                        if let suggestion = ImagePipeline.suggestPairAlignment(first, second) {
+                            workspace.pairAlignment = suggestion
+                            workspace.statusMessage = "Alignment suggested. Verify it with the overlay before exporting."
+                        } else {
+                            workspace.statusMessage = "Could not find a useful edge-overlap suggestion. Align manually."
+                        }
+                    }
+                    .help("Suggest a translation using only the expected page-edge overlap")
+
+                    Button("Reset") {
+                        if let a = ImagePipeline.render(first, applyCrop: true) {
+                            workspace.pairAlignment.reset(baseWidth: CGFloat(a.width))
+                        }
+                    }
+
+                    Spacer()
+                    Text("Overlay").foregroundStyle(.secondary)
+                    Slider(value: $workspace.pairAlignment.opacity, in: 0...1)
+                        .frame(width: 170)
+                    Button("Flicker") {
+                        workspace.pairAlignment.opacity = workspace.pairAlignment.opacity < 0.9 ? 1 : 0
                     }
                 }
-                .help("Suggest a translation using only the expected page-edge overlap")
 
-                Divider().frame(height: 24)
+                HStack(spacing: 10) {
+                    Text("Position").foregroundStyle(.secondary)
+                    Text("X")
+                    TextField("X", text: numberBinding(
+                        get: { workspace.pairAlignment.offsetX },
+                        set: { workspace.pairAlignment.offsetX = $0 }
+                    ))
+                    .frame(width: 70)
+                    Text("Y")
+                    TextField("Y", text: numberBinding(
+                        get: { workspace.pairAlignment.offsetY },
+                        set: { workspace.pairAlignment.offsetY = $0 }
+                    ))
+                    .frame(width: 70)
+                    nudgeButtons
 
-                Text("Overlay")
-                Slider(value: $workspace.pairAlignment.opacity, in: 0...1)
-                    .frame(width: 130)
-                Button("Flicker") {
-                    workspace.pairAlignment.opacity = workspace.pairAlignment.opacity < 0.9 ? 1 : 0
-                }
-
-                Divider().frame(height: 24)
-
-                Text("X")
-                TextField("X", text: numberBinding(
-                    get: { workspace.pairAlignment.offsetX },
-                    set: { workspace.pairAlignment.offsetX = $0 }
-                ))
-                .frame(width: 70)
-                Text("Y")
-                TextField("Y", text: numberBinding(
-                    get: { workspace.pairAlignment.offsetY },
-                    set: { workspace.pairAlignment.offsetY = $0 }
-                ))
-                .frame(width: 70)
-                nudgeButtons
-
-                Divider().frame(height: 24)
-
-                Text("Rotate")
-                Slider(value: $workspace.pairAlignment.rotationDegrees, in: -3...3, step: 0.02)
-                    .frame(width: 150)
-                Text(String(format: "%+.2f°", workspace.pairAlignment.rotationDegrees))
-                    .monospacedDigit().frame(width: 56)
-
-                Spacer()
-                Button("Reset") {
-                    if let a = ImagePipeline.render(first, applyCrop: true) {
-                        workspace.pairAlignment.reset(baseWidth: CGFloat(a.width))
-                    }
+                    Spacer()
+                    Text("Rotate").foregroundStyle(.secondary)
+                    Slider(value: $workspace.pairAlignment.rotationDegrees, in: -3...3, step: 0.02)
+                        .frame(width: 190)
+                    Text(String(format: "%+.2f°", workspace.pairAlignment.rotationDegrees))
+                        .monospacedDigit().frame(width: 56)
                 }
             }
             .padding(12)
