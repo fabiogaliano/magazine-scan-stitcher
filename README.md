@@ -6,32 +6,46 @@ The production direction is a custom OpenCV registration pipeline rather than a 
 
 ## Try it on real scans
 
-On a Mac with Homebrew, the shortest path is:
+On a Mac with Homebrew, the shortest path for a scanner-produced **two-page TIFF** is:
 
 ```bash
 brew install cmake opencv
 git clone https://github.com/fabiogaliano/magazine-scan-stitcher.git
 cd magazine-scan-stitcher
-bash scripts/run-macos.sh A.tif B.tif spread.tif
+bash scripts/run-macos.sh 2026-08-16_22-07-45.tiff spread.tif
 ```
+
+Single-input mode requires exactly two pages:
+
+- page 1 becomes scan A;
+- page 2 becomes scan B;
+- B is rotated 180° by default before registration.
+
+The two pages do not need identical dimensions. A 2480×3230 first page and 2480×3460 second page are valid inputs for the current canvas logic.
 
 The helper builds the CLI and writes:
 
-- `spread.tif` when automatic alignment passes confidence checks.
-- `spread-preview.jpg` for quick visual inspection, even when alignment is rejected.
-- `spread-metrics.json` with registration/confidence measurements.
+- `spread.tif` when automatic alignment passes confidence checks;
+- `spread-preview.jpg` for quick visual inspection, even when alignment is rejected;
+- `spread-metrics.json` with registration/confidence measurements;
 - `spread-debug/` with match, overlap, seam, and metrics diagnostics.
 
-The helper assumes B should be rotated 180°. Pass `0` as the fourth argument when it should not be rotated:
+If B should not be rotated, pass `0`:
 
 ```bash
-bash scripts/run-macos.sh A.tif B.tif spread.tif 0
+bash scripts/run-macos.sh 2026-08-16_22-07-45.tiff spread.tif 0
+```
+
+Two separate images remain supported:
+
+```bash
+bash scripts/run-macos.sh A.tif B.tif spread.tif
 ```
 
 Existing final outputs are not overwritten by default. For an intentional rerun:
 
 ```bash
-OVERWRITE=1 bash scripts/run-macos.sh A.tif B.tif spread.tif
+OVERWRITE=1 bash scripts/run-macos.sh 2026-08-16_22-07-45.tiff spread.tif
 ```
 
 ## Prototype status
@@ -39,6 +53,7 @@ OVERWRITE=1 bash scripts/run-macos.sh A.tif B.tif spread.tif
 This repository is **Phase 2 / CLI-first**. It implements:
 
 - C++17 + OpenCV engine and `magstitch` CLI.
+- Direct loading of a two-page TIFF as A + B, or two separate image files.
 - SIFT features on downsampled grayscale images.
 - Lowe-ratio filtering plus mutual matching.
 - RANSAC similarity estimation using `estimateAffinePartial2D`.
@@ -55,7 +70,7 @@ Not implemented yet: GUI, scanner control, OCR, non-rigid warping, ECC refinemen
 
 ### Important archival limitation
 
-OpenCV writes the output pixels losslessly for TIFF/PNG, but this prototype does **not yet copy DPI/ICC/TIFF metadata from scan A**. Until the macOS Image I/O layer lands, treat output as a geometry/compositing prototype rather than final archival output.
+OpenCV writes the output pixels losslessly for TIFF/PNG, but this prototype does **not yet preserve TIFF metadata, DPI, or embedded ICC profiles in the output**. Directly reading a two-page TIFF therefore removes the manual page-export step, but does not yet make the result metadata-safe for archival use. ICC/DPI preservation remains a later macOS Image I/O layer task.
 
 ## Build manually
 
@@ -70,6 +85,20 @@ ctest --test-dir build --output-on-failure
 
 ## CLI usage
 
+Two-page TIFF:
+
+```bash
+./build/magstitch scans.tiff \
+  --rotate-b 180 \
+  --model auto \
+  --output spread.tif \
+  --preview spread-preview.jpg \
+  --metrics spread-metrics.json \
+  --debug spread-debug/
+```
+
+Two separate files:
+
 ```bash
 ./build/magstitch A.tif B.tif \
   --rotate-b 180 \
@@ -80,7 +109,7 @@ ctest --test-dir build --output-on-failure
   --debug spread-debug/
 ```
 
-Final output is restricted to TIFF or PNG. A low-confidence run can still write the requested preview and diagnostics, but exits nonzero without writing the final archival image. `--force` allows writing an explicitly forced output. `--overwrite` must be supplied to replace an existing final output.
+Single-input mode rejects files that do not contain exactly two readable pages. Final output is restricted to TIFF or PNG. A low-confidence run can still write the requested preview and diagnostics, but exits nonzero without writing the final archival image. `--force` allows writing an explicitly forced output. `--overwrite` must be supplied to replace an existing final output.
 
 Exit codes:
 
@@ -96,4 +125,4 @@ Exit codes:
 
 ## What matters next
 
-Run representative real A/B pairs at the intended scan resolution. Check small text, halftone regions, gutter behavior, seam placement, and whether the confidence gate agrees with visual quality. The next engineering work should be driven by those failures rather than by adding more registration features speculatively.
+Run the actual scanner-produced two-page TIFF through the tool. Check small text, halftone regions, gutter behavior, seam placement, and whether the confidence gate agrees with visual quality. The next engineering work should be driven by that real result rather than by adding more registration features speculatively.
