@@ -1,80 +1,61 @@
-# magazine-scan-stitcher
+# Magazine Scan
 
-A narrow, distortion-conscious prototype for stitching two overlapping flatbed scans of a magazine spread.
+A macOS app for scanning, reviewing, correcting, and exporting magazine pages. Two-page alignment is an optional workflow inside the app rather than the whole product.
 
-The production direction is a custom OpenCV registration pipeline rather than a generic panorama stitcher. Scan A is never geometrically resampled. Scan B is optionally rotated 180°, registered to A, warped once at full resolution, and joined through a low-error mostly vertical seam with a narrow feather.
+## Product workflow
 
-## Try it on real scans
+1. **Scan or import** — use a connected scanner, or import TIFF/PNG/JPEG files. Multi-page TIFFs become multiple pages in the session.
+2. **Review each page** — rotate, fine-deskew, request an auto-crop suggestion, adjust the crop manually, then explicitly validate it.
+3. **Align a pair when needed** — when there are at least two pages, switch to **Align Pair** and use transparency overlay, drag, pixel nudging, fine rotation, or a conservative edge-overlap Auto Align suggestion.
+4. **Export** — save a corrected single page or an aligned spread as TIFF, PNG, or JPEG.
 
-On a Mac with Homebrew, the shortest path for a scanner-produced **two-page TIFF** is:
+The app is intentionally manual-first. Automatic crop/alignment should save time, but the user always gets a visual validation step before export.
+
+## Run the macOS app
 
 ```bash
-brew install cmake opencv
 git clone https://github.com/fabiogaliano/magazine-scan-stitcher.git
-cd magazine-scan-stitcher
-bash scripts/run-macos.sh 2026-08-16_22-07-45.tiff spread.tif
+cd magazine-scan-stitcher/macos
+swift run MagazineScan
 ```
 
-Single-input mode requires exactly two pages:
-
-- page 1 becomes scan A;
-- page 2 becomes scan B;
-- B is rotated 180° by default before registration.
-
-The two pages do not need identical dimensions. A 2480×3230 first page and 2480×3460 second page are valid inputs for the current canvas logic.
-
-The helper builds the CLI and writes:
-
-- `spread.tif` when automatic alignment passes confidence checks;
-- `spread-preview.jpg` for quick visual inspection, even when alignment is rejected;
-- `spread-metrics.json` with registration/confidence measurements;
-- `spread-debug/` with match, overlap, seam, and metrics diagnostics.
-
-If B should not be rotated, pass `0`:
+To build a local `.app` bundle:
 
 ```bash
-bash scripts/run-macos.sh 2026-08-16_22-07-45.tiff spread.tif 0
+cd macos
+bash build-app.sh
+open "dist/Magazine Scan.app"
 ```
 
-Two separate images remain supported:
+GitHub Actions also builds and packages `Magazine Scan.app` on macOS as a downloadable `MagazineScan-macOS` artifact.
 
-```bash
-bash scripts/run-macos.sh A.tif B.tif spread.tif
-```
+See [`macos/README.md`](macos/README.md) for app details.
 
-Existing final outputs are not overwritten by default. For an intentional rerun:
+## What the app currently includes
 
-```bash
-OVERWRITE=1 bash scripts/run-macos.sh 2026-08-16_22-07-45.tiff spread.tif
-```
+- SwiftUI macOS interface with page sidebar and review workspace.
+- Scanner discovery and native scanner controls using ImageCaptureCore/Quartz.
+- TIFF/PNG/JPEG import and multi-page TIFF loading.
+- 90° rotation plus fine deskew.
+- Conservative auto-crop suggestion with draggable crop rectangle and corner handles.
+- Explicit crop validation before export.
+- Optional pair-alignment workspace with opacity overlay, flicker, drag, numeric offsets, pixel nudges, and fine rotation.
+- Edge-overlap Auto Align suggestion designed to avoid the false full-page matches seen in real magazine scans.
+- ImageIO-based TIFF/PNG/JPEG export using the source image property dictionary as the metadata starting point.
 
-## Prototype status
+## Current limitations
 
-This repository is **Phase 2 / CLI-first**. It implements:
+- Physical scanner behavior still needs testing on the target scanner; CI verifies the macOS code and app bundle compile, not the hardware.
+- Auto-crop is a suggestion, not a final crop detector. The user validates it.
+- Pair Auto Align is translation-only and intentionally searches a narrow expected edge-overlap range. It is a starting position, not an archival-quality decision.
+- Pair export currently uses the chosen geometry directly; seam/blend refinement can be added after the manual workflow has been validated on more real scans.
+- Metadata handling is better than the earlier OpenCV-only path, but exact archival preservation of every TIFF/ICC tag still needs real-file validation.
 
-- C++17 + OpenCV engine and `magstitch` CLI.
-- Direct loading of a two-page TIFF as A + B, or two separate image files.
-- SIFT features on downsampled grayscale images.
-- Lowe-ratio filtering plus mutual matching.
-- RANSAC similarity estimation using `estimateAffinePartial2D`.
-- `auto|translation|rigid|similarity|affine` model selection.
-- Fixed A; only B is warped.
-- Full-resolution canvas composition.
-- Residual/gradient seam cost and a mostly vertical dynamic-programming seam.
-- Narrow feather blending instead of wide multiband blending.
-- Confidence metrics, hard rejection reasons, and distinct low-confidence exit behavior.
-- Diagnostic match, overlap, seam, preview, and JSON outputs.
-- Synthetic geometry tests.
+## Experimental C++ registration engine
 
-Not implemented yet: GUI, scanner control, OCR, non-rigid warping, ECC refinement, exposure compensation, or automatic homography.
+The repository also contains the original C++17/OpenCV `magstitch` CLI. It remains useful for registration experiments, confidence metrics, diagnostics, and synthetic tests, but it is no longer the primary user experience.
 
-### Important archival limitation
-
-OpenCV writes the output pixels losslessly for TIFF/PNG, but this prototype does **not yet preserve TIFF metadata, DPI, or embedded ICC profiles in the output**. Directly reading a two-page TIFF therefore removes the manual page-export step, but does not yet make the result metadata-safe for archival use. ICC/DPI preservation remains a later macOS Image I/O layer task.
-
-## Build manually
-
-Requirements: CMake 3.20+, a C++17 compiler, and OpenCV 4.5+ with `features2d`, `calib3d`, `imgproc`, and `imgcodecs`.
+Build it with:
 
 ```bash
 brew install cmake opencv
@@ -83,46 +64,4 @@ cmake --build build -j
 ctest --test-dir build --output-on-failure
 ```
 
-## CLI usage
-
-Two-page TIFF:
-
-```bash
-./build/magstitch scans.tiff \
-  --rotate-b 180 \
-  --model auto \
-  --output spread.tif \
-  --preview spread-preview.jpg \
-  --metrics spread-metrics.json \
-  --debug spread-debug/
-```
-
-Two separate files:
-
-```bash
-./build/magstitch A.tif B.tif \
-  --rotate-b 180 \
-  --model auto \
-  --output spread.tif \
-  --preview spread-preview.jpg \
-  --metrics spread-metrics.json \
-  --debug spread-debug/
-```
-
-Single-input mode rejects files that do not contain exactly two readable pages. Final output is restricted to TIFF or PNG. A low-confidence run can still write the requested preview and diagnostics, but exits nonzero without writing the final archival image. `--force` allows writing an explicitly forced output. `--overwrite` must be supplied to replace an existing final output.
-
-Exit codes:
-
-- `0`: accepted output written.
-- `2`: CLI usage or argument error.
-- `3`: processing/I/O failure.
-- `4`: automatic alignment rejected; no final output written.
-- `5`: low-confidence output written because `--force` was supplied.
-
-## Model policy
-
-`auto` starts from a similarity estimate. It snaps down to translation or rigid only when the measured scale/rotation is already negligible. Full affine is opt-in for the prototype; homography is intentionally unavailable. The current sanity thresholds are conservative placeholders and must be calibrated on real scans.
-
-## What matters next
-
-Run the actual scanner-produced two-page TIFF through the tool. Check small text, halftone regions, gutter behavior, seam placement, and whether the confidence gate agrees with visual quality. The next engineering work should be driven by that real result rather than by adding more registration features speculatively.
+It accepts either two separate images or a two-page TIFF. See the CLI source and `scripts/run-macos.sh` for the low-level workflow.
