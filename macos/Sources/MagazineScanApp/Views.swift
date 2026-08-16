@@ -179,6 +179,7 @@ struct PageReviewView: View {
 
 struct CropCanvas: View {
     @ObservedObject var page: ScanPage
+    @State private var cropDragStart: UnitCrop?
 
     var body: some View {
         GeometryReader { geo in
@@ -242,16 +243,16 @@ struct CropCanvas: View {
     private func moveGesture(fitted: CGRect) -> some Gesture {
         DragGesture()
             .onChanged { value in
-                let dx = value.translation.width / fitted.width
-                let dy = value.translation.height / fitted.height
-                var c = page.crop
-                c.x += dx
-                c.y += dy
+                if cropDragStart == nil { cropDragStart = page.crop }
+                guard var c = cropDragStart else { return }
+                c.x += value.translation.width / fitted.width
+                c.y += value.translation.height / fitted.height
                 c.x = min(max(c.x, 0), 1 - c.width)
                 c.y = min(max(c.y, 0), 1 - c.height)
                 page.crop = c
                 page.cropValidated = false
             }
+            .onEnded { _ in cropDragStart = nil }
     }
 
     private func resizeGesture(_ corner: Corner, fitted: CGRect) -> some Gesture {
@@ -328,9 +329,21 @@ struct PairAlignmentView: View {
 
             Divider()
             HStack(spacing: 14) {
+                Button("Auto Align") {
+                    if let suggestion = ImagePipeline.suggestPairAlignment(first, second) {
+                        workspace.pairAlignment = suggestion
+                        workspace.statusMessage = "Alignment suggested. Verify it with the overlay before exporting."
+                    } else {
+                        workspace.statusMessage = "Could not find a useful edge-overlap suggestion. Align manually."
+                    }
+                }
+                .help("Suggest a translation using only the expected page-edge overlap")
+
+                Divider().frame(height: 24)
+
                 Text("Overlay")
                 Slider(value: $workspace.pairAlignment.opacity, in: 0...1)
-                    .frame(width: 150)
+                    .frame(width: 130)
                 Button("Flicker") {
                     workspace.pairAlignment.opacity = workspace.pairAlignment.opacity < 0.9 ? 1 : 0
                 }
