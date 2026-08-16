@@ -1,6 +1,6 @@
+@preconcurrency import ImageCaptureCore
 import Combine
 import Foundation
-import ImageCaptureCore
 
 @MainActor
 extension ICDevice {
@@ -21,8 +21,6 @@ final class ScannerService: NSObject, ObservableObject, @preconcurrency ICDevice
         browser.browsedDeviceTypeMask = .scanner
         browser.start()
     }
-
-    deinit { browser.stop() }
 
     var selectedScanner: ICScannerDevice? {
         if let selectedScannerID,
