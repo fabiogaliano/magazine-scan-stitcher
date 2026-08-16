@@ -17,3 +17,12 @@ jobs:
         run: cmake --build build -j2
       - name: Test
         run: ctest --test-dir build --output-on-failure
+
+  macos-app:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build SwiftUI app
+        run: swift build --package-path macos
+      - name: Build local app bundle
+        run: bash macos/build-app.sh
