@@ -148,10 +148,17 @@ final class WorkspaceModel: ObservableObject {
 
     func setSelection(_ ids: Set<UUID>) {
         let existing = Set(pages.map(\.id))
-        selectedPageIDs = ids.intersection(existing)
+        let nextSelection = ids.intersection(existing)
+
+        // Leave Align mode before publishing a changed selection. Each @Published write can
+        // trigger a SwiftUI render, so changing the selection first can otherwise leave a
+        // transient frame where the alignment view has no valid fixed/moving pair.
+        if nextSelection != selectedPageIDs, mode == .align {
+            mode = .page
+        }
+        selectedPageIDs = nextSelection
 
         if selectedPageIDs.count != 2 {
-            mode = .page
             fixedPageID = nil
             alignmentPairKey = []
             if selectedPageIDs.count > 2 {
@@ -202,6 +209,7 @@ final class WorkspaceModel: ObservableObject {
 
     func removeSelected() {
         guard !selectedPageIDs.isEmpty else { return }
+        if mode == .align { mode = .page }
         pages.removeAll { selectedPageIDs.contains($0.id) }
         setSelection(pages.first.map { [$0.id] } ?? [])
     }
