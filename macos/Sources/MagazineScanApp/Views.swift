@@ -104,8 +104,10 @@ struct RootView: View {
 
     @ViewBuilder
     private var detail: some View {
-        if workspace.mode == .align, workspace.canAlignPair {
-            PairAlignmentView(workspace: workspace)
+        if workspace.mode == .align,
+           let fixed = workspace.fixedPage,
+           let moving = workspace.movingPage {
+            PairAlignmentView(workspace: workspace, fixed: fixed, moving: moving)
         } else if let page = workspace.selectedPage {
             PageReviewView(page: page, workspace: workspace)
         } else if workspace.canAlignPair {
@@ -447,12 +449,11 @@ struct CropCanvas: View {
 
 struct PairAlignmentView: View {
     @ObservedObject var workspace: WorkspaceModel
+    let fixed: ScanPage
+    let moving: ScanPage
     @State private var dragStartX: CGFloat?
     @State private var dragStartY: CGFloat?
     @State private var differenceMode = false
-
-    private var fixed: ScanPage { workspace.fixedPage! }
-    private var moving: ScanPage { workspace.movingPage! }
 
     var body: some View {
         VStack(spacing: 0) {
